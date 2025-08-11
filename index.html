@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Robust Zooming Fractal</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: sans-serif;
+      color: #fff;
+    }
+    canvas {
+      border: 1px solid #333;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    }
+    #info-box {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="fractalCanvas"></canvas>
+  <div id="info-box">
+    <p>Zoom Level: <span id="zoom-level">1x</span></p>
+    <p>Iterations: <span id="iterations-count"></span></p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('fractalCanvas');
+    const ctx = canvas.getContext('2d');
+    const zoomLevelSpan = document.getElementById('zoom-level');
+    const iterationsCountSpan = document.getElementById('iterations-count');
+    
+    canvas.width = 800;
+    canvas.height = 800;
+
+    let xCenter = -0.743643887037151;
+    let yCenter = 0.131825904205330;
+    let zoom = 1;
+
+    const worker = new Worker('fractal-worker.js');
+    let isDrawing = false;
+    let nextZoom = zoom;
+
+    function animate() {
+      if (!isDrawing) {
+        isDrawing = true;
+        const maxIterations = Math.floor(200 + Math.log(nextZoom) * 50); 
+        
+        worker.postMessage({
+          width: canvas.width,
+          height: canvas.height,
+          xCenter,
+          yCenter,
+          zoom: nextZoom,
+          maxIterations
+        });
+
+        zoomLevelSpan.textContent = `${nextZoom.toFixed(2)}x`;
+        iterationsCountSpan.textContent = maxIterations;
+        nextZoom *= 1.02;
+      }
+      requestAnimationFrame(animate);
+    }
+
+    worker.onmessage = (e) => {
+      const { pixelData } = e.data;
+      
+      const imageData = new ImageData(new Uint8ClampedArray(pixelData), canvas.width, canvas.height);
+      
+      ctx.putImageData(imageData, 0, 0);
+
+      isDrawing = false;
+    };
+    
+    animate();
+  </script>
+
+</body>
+</html>
