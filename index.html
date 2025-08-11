@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Worker Test</title>
+</head>
+<body>
+
+  <h1>Worker Status: <span id="status">Waiting...</span></h1>
+
+  <script>
+    const statusSpan = document.getElementById('status');
+
+    try {
+      const worker = new Worker('fractal-worker.js');
+      worker.onmessage = (e) => {
+        statusSpan.textContent = e.data.message;
+      };
+      console.log("Main thread: Worker created and message listener set up.");
+    } catch (e) {
+      statusSpan.textContent = "FAILURE: Could not create worker!";
+      console.error("Main thread error:", e);
+    }
+  </script>
+
+</body>
+</html>
