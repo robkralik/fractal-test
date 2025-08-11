@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Final WebGL Fractal</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: sans-serif;
+      color: #fff;
+    }
+    canvas {
+      border: 1px solid #333;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    }
+    #info-box {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="fractalCanvas"></canvas>
+  <div id="info-box">
+    <p>Zoom Level: <span id="zoom-level">1x</span></p>
+  </div>
+
+  <script id="vertex-shader" type="x-shader/x-vertex">
+    attribute vec2 a_position;
+    void main() {
+      gl_Position = vec4(a_position, 0.0, 1.0);
+    }
+  </script>
+
+  <script id="fragment-shader" type="x-shader/x-fragment">
+    precision highp float;
+
+    uniform vec2 u_resolution;
+    uniform vec2 u_center;
+    uniform float u_zoom;
+
+    const int MAX_ITERATIONS = 500;
+
+    void main() {
+      vec2 z_new = gl_FragCoord.xy;
+      
+      vec2 c = u_center + (z_new - u_resolution / 2.0) / u_resolution.y / u_zoom;
+      vec2 z = c;
+
+      int n = 0;
+      for(int i = 0; i < MAX_ITERATIONS; i++) {
+        float x_new = z.x * z.x - z.y * z.y + c.x;
+        z.y = 2.0 * z.x * z.y + c.y;
+        z.x = x_new;
+        
+        if (dot(z, z) > 4.0) {
+          n = i;
+          break;
+        }
+      }
+
+      vec4 color;
+      if (n == 0 || n == MAX_ITERATIONS - 1) {
+        color = vec4(0.0, 0.0, 0.0, 1.0);
+      } else {
+        float t = float(n) / float(MAX_ITERATIONS);
+        vec3 hue_color = vec3(t, t*t, 1.0 - t);
+        color = vec4(hue_color, 1.0);
+      }
+      
+      gl_FragColor = color;
+    }
+  </script>
+
+  <script>
+    const canvas = document.getElementById('fractalCanvas');
+    const zoomLevelSpan = document.getElementById('zoom-level');
+    const gl = canvas.getContext('webgl');
+
+    canvas.width = 800;
+    canvas.height = 800;
+
+    if (!gl) {
+      alert("WebGL is not supported on your device. Please use a different browser.");
+      return;
+    }
+
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader compilation error: ' + gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+
+    const vertexShaderSource = document.getElementById('vertex-shader').text;
+    const fragmentShaderSource = document.getElementById('fragment-shader').text;
+
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    gl.useProgram(shaderProgram);
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    const positions = [-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0,];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    const positionAttributeLocation = gl.getAttribLocation(shaderProgram, 'a_position');
+    gl.enableVertexAttribArray(positionAttributeLocation);
+    gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const resolutionUniformLocation = gl.getUniformLocation(shaderProgram, 'u_resolution');
+    const centerUniformLocation = gl.getUniformLocation(shaderProgram, 'u_center');
+    const zoomUniformLocation = gl.getUniformLocation(shaderProgram, 'u_zoom');
+
+    gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+
+    const center = { x: -0.743643887037151, y: 0.131825904205330 };
+    let zoom = 1.0;
+    
+    function render() {
+      gl.uniform2f(centerUniformLocation, center.x, center.y);
+      gl.uniform1f(zoomUniformLocation, zoom);
+
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      zoom *= 1.02;
+      zoomLevelSpan.textContent = `${zoom.toFixed(2)}x`;
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
