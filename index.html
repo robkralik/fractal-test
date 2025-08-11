@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Optimized Zooming Fractal</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: sans-serif;
+      color: #fff;
+    }
+    canvas {
+      border: 1px solid #333;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    }
+    #info-box {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="fractalCanvas"></canvas>
+  <div id="info-box">
+    <p>Zoom Level: <span id="zoom-level">1x</span></p>
+    <p>Iterations: <span id="iterations-count"></span></p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('fractalCanvas');
+    const zoomLevelSpan = document.getElementById('zoom-level');
+    const iterationsCountSpan = document.getElementById('iterations-count');
+
+    // Set canvas size
+    canvas.width = 800;
+    canvas.height = 800;
+    
+    // Check for OffscreenCanvas support before creating the worker
+    if ('OffscreenCanvas' in window) {
+      // Transfer the canvas control to a worker
+      const offscreen = canvas.transferControlToOffscreen();
+      const worker = new Worker('fractal-worker.js');
+
+      // Send the offscreen canvas and initial parameters to the worker
+      worker.postMessage({ 
+        canvas: offscreen, 
+        width: canvas.width, 
+        height: canvas.height,
+        xCenter: -0.743643887037151,
+        yCenter: 0.131825904205330
+      }, [offscreen]);
+
+      // Handle messages from the worker
+      worker.onmessage = (e) => {
+        const { zoom, maxIterations } = e.data;
+        zoomLevelSpan.textContent = `${zoom.toFixed(2)}x`;
+        iterationsCountSpan.textContent = maxIterations;
+
+        // Request the next frame from the worker
+        worker.postMessage({ type: 'animate' });
+      };
+
+      // Initial call to start the animation
+      worker.postMessage({ type: 'animate' });
+      
+    } else {
+      // Fallback for browsers that don't support OffscreenCanvas
+      document.body.innerHTML = '<h1>Your browser does not support OffscreenCanvas.</h1><p>Please use a modern browser like Chrome or Firefox on a desktop or Android device for the best performance.</p>';
+    }
+  </script>
+
+</body>
+</html>
