@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Minimal Mandelbrot Zoom</title>
+<style>
+  html, body, canvas {
+    margin: 0; padding: 0; width: 100%; height: 100%; display: block; background: black;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+#version 300 es
+layout(location=0) in vec2 a_position;
+out vec2 v_uv;
+void main() {
+  v_uv = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0, 1);
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+out vec4 outColor;
+
+uniform vec2 u_resolution;
+uniform vec2 u_center;
+uniform float u_scale;
+uniform int u_maxIter;
+
+void main() {
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 uv = (v_uv - 0.5) * vec2(aspect, 1.0);
+  vec2 c = u_center + uv * u_scale;
+
+  vec2 z = vec2(0.0);
+  int i = 0;
+  for(; i < u_maxIter; i++) {
+    if(dot(z,z) > 4.0) break;
+    z = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + c;
+  }
+
+  float t = float(i) / float(u_maxIter);
+  vec3 color = vec3(0.5 + 0.5*cos(6.2831*t + vec3(0, 0.6, 1.0)));
+  if(i == u_maxIter) color = vec3(0.0);
+
+  outColor = vec4(color, 1.0);
+}
+</script>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const gl = canvas.getContext('webgl2');
+  if(!gl) {
+    alert('WebGL2 not supported');
+    return;
+  }
+
+  function compileShader(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(s));
+    }
+    return s;
+  }
+
+  const vs = compileShader(gl.VERTEX_SHADER, document.getElementById('vertex-shader').textContent);
+  const fs = compileShader(gl.FRAGMENT_SHADER, document.getElementById('fragment-shader').textContent);
+
+  const program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if(!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(program));
+  }
+  gl.useProgram(program);
+
+  // Fullscreen quad
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1,-1, 1,-1, -1,1, 1,1
+  ]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  // Uniform locations
+  const u_resolution = gl.getUniformLocation(program, 'u_resolution');
+  const u_center = gl.getUniformLocation(program, 'u_center');
+  const u_scale = gl.getUniformLocation(program, 'u_scale');
+  const u_maxIter = gl.getUniformLocation(program, 'u_maxIter');
+
+  let centerX = -0.75;
+  let centerY = 0.0;
+  let scale = 3.0;
+  const zoomSpeed = 0.95;
+  let maxIter = 300;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.floor(canvas.clientWidth * dpr);
+    const h = Math.floor(canvas.clientHeight * dpr);
+    canvas.width = w;
+    canvas.height = h;
+    gl.viewport(0, 0, w, h);
+    gl.uniform2f(u_resolution, w, h);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function animate() {
+    scale *= zoomSpeed;
+    maxIter = Math.min(1500, Math.floor(300 - Math.log10(scale)*100));
+
+    gl.uniform2f(u_center, centerX, centerY);
+    gl.uniform1f(u_scale, scale);
+    gl.uniform1i(u_maxIter, maxIter);
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+})();
+</script>
+</body>
+</html>
